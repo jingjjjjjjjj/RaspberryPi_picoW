@@ -1,9 +1,9 @@
 from machine import Timer,Pin
 
-led = Pin("LED", mode = Pin.OUT)
-def callback5000(n):
-    led.on()
-    time
+def callback2000(n):
+    led = Pin("LED", mode = Pin.OUT)
+    if led.value() == 0:
+        led.on()
     else:
         led.off()
         
