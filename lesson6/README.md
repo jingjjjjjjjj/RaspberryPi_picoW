@@ -132,7 +132,11 @@ sudo systemctl enable mosquitto
 
 確認已安裝必要套件：
 ```bash
+<<<<<<< HEAD
 cd /home/pi/Documents/GitHub/RaspberryPi_picoW/lesson6
+=======
+cd /home/pi/Documents/GitHub/
+>>>>>>> cb7092862f6f3329c2b73044d81b0bfc51c80401
 uv sync
 ```
 
