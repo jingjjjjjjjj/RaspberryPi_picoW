@@ -25,14 +25,14 @@
 ### 方式 1：使用啟動腳本（推薦）
 
 ```bash
-cd /home/pi/Documents/GitHub/2025_10_26_chihlee_pi_pico/lesson6
+cd /home/pi/Documents/GitHub/RaspberryPi_picoW/lesson6
 ./start.sh
 ```
 
 ### 方式 2：手動啟動
 
 ```bash
-cd /home/pi/Documents/GitHub/2025_10_26_chihlee_pi_pico/lesson6
+cd /home/pi/Documents/GitHub/RaspberryPi_picoW/lesson6
 uv run python app_flask.py
 ```
 
@@ -40,7 +40,7 @@ uv run python app_flask.py
 
 在瀏覽器中訪問：
 - 本地：http://localhost:8080
-- 區域網路：http://172.20.10.3:8080
+- 區域網路：http://172.20.10.2:8080
 
 ## 📊 測試數據
 
@@ -132,7 +132,7 @@ sudo systemctl enable mosquitto
 
 確認已安裝必要套件：
 ```bash
-cd /home/pi/Documents/GitHub/2025_10_26_chihlee_pi_pico
+cd /home/pi/Documents/GitHub/RaspberryPi_picoW/lesson6
 uv sync
 ```
 
