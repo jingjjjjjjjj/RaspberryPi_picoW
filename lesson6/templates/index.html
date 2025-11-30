@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT 感測器監控面板</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        
+        .status-connected {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .status-disconnected {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card-title {
+            color: #333;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            opacity: 0.7;
+        }
+        
+        .card-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .card-unit {
+            font-size: 1em;
+            color: #999;
+            margin-left: 10px;
+        }
+        
+        .card-timestamp {
+            font-size: 0.8em;
+            color: #aaa;
+            margin-top: 15px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        
+        .light-on {
+            color: #FFC107;
+        }
+        
+        .light-off {
+            color: #999;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+        
+        .chart-title {
+            color: #333;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        
+        .info-box {
+            background: rgba(255, 255, 255, 0.1);
+            border-left: 4px solid white;
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+        
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.2em;
+        }
+        
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+            
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .card-value {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌡️ MQTT 感測器監控面板</h1>
+            <div id="status" class="status-badge status-disconnected">
+                📡 連線中...
+            </div>
+        </header>
+        
+        <div class="dashboard">
+            <div class="card">
+                <div class="card-title">⚡ 電燈狀態</div>
+                <div class="card-value" id="lightStatus">-</div>
+                <div class="card-timestamp">
+                    <strong>更新時間:</strong><br>
+                    <span id="lightTime">-</span>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">🌡️ 溫度</div>
+                <div class="card-value">
+                    <span id="temperature">0</span>
+                    <span class="card-unit">°C</span>
+                </div>
+                <div class="card-timestamp">
+                    <strong>更新時間:</strong><br>
+                    <span id="tempTime">-</span>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">💧 濕度</div>
+                <div class="card-value">
+                    <span id="humidity">0</span>
+                    <span class="card-unit">%</span>
+                </div>
+                <div class="card-timestamp">
+                    <strong>更新時間:</strong><br>
+                    <span id="humidityTime">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">📊 溫度與濕度趨勢圖</div>
+            <canvas id="trendChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">📈 數據記錄統計</div>
+            <canvas id="statsChart"></canvas>
+        </div>
+        
+        <div class="info-box">
+            📌 <strong>說明:</strong> 此面板實時顯示來自 MQTT Broker 的感測器數據。溫度與濕度圖表將在接收到新數據時自動更新。
+        </div>
+    </div>
+    
+    <script>
+        // 初始化 Socket.IO 連線
+        const socket = io();
+        
+        // 圖表實例
+        let trendChart = null;
+        let statsChart = null;
+        const maxDataPoints = 20;
+        
+        // 初始化數據
+        let chartData = {
+            temperatures: [],
+            humidities: [],
+            timestamps: []
+        };
+        
+        // Socket.IO 事件
+        socket.on('connect', () => {
+            updateStatus(true);
+            fetchLatestData();
+            fetchHistoryData();
+        });
+        
+        socket.on('disconnect', () => {
+            updateStatus(false);
+        });
+        
+        socket.on('new_data', (data) => {
+            updateDashboard(data);
+            addChartData(data);
+        });
+        
+        // 更新連線狀態
+        function updateStatus(connected) {
+            const statusEl = document.getElementById('status');
+            if (connected) {
+                statusEl.className = 'status-badge status-connected';
+                statusEl.textContent = '✅ 已連線';
+            } else {
+                statusEl.className = 'status-badge status-disconnected';
+                statusEl.textContent = '❌ 已斷線';
+            }
+        }
+        
+        // 獲取最新數據
+        function fetchLatestData() {
+            fetch('/api/latest')
+                .then(res => res.json())
+                .then(data => {
+                    updateDashboard(data);
+                })
+                .catch(err => console.error('獲取最新數據失敗:', err));
+        }
+        
+        // 獲取歷史數據
+        function fetchHistoryData() {
+            fetch('/api/history')
+                .then(res => res.json())
+                .then(data => {
+                    // 只取最後 20 筆用於圖表
+                    const recent = data.slice(-maxDataPoints);
+                    chartData = {
+                        temperatures: recent.map(d => d.temperature),
+                        humidities: recent.map(d => d.humidity),
+                        timestamps: recent.map((d, i) => {
+                            const time = d.timestamp.split(' ')[1] || `第 ${i+1} 筆`;
+                            return time;
+                        })
+                    };
+                    
+                    // 初始化圖表
+                    initCharts();
+                })
+                .catch(err => console.error('獲取歷史數據失敗:', err));
+        }
+        
+        // 更新儀表板
+        function updateDashboard(data) {
+            // 電燈狀態
+            const lightEl = document.getElementById('lightStatus');
+            lightEl.textContent = data.light_status || '未知';
+            if (data.light_status === '開' || data.light_status === 'on') {
+                lightEl.className = 'card-value light-on';
+            } else {
+                lightEl.className = 'card-value light-off';
+            }
+            document.getElementById('lightTime').textContent = data.timestamp || '-';
+            
+            // 溫度
+            document.getElementById('temperature').textContent = 
+                (typeof data.temperature === 'number' ? data.temperature.toFixed(1) : data.temperature) || '0';
+            document.getElementById('tempTime').textContent = data.timestamp || '-';
+            
+            // 濕度
+            document.getElementById('humidity').textContent = 
+                (typeof data.humidity === 'number' ? data.humidity.toFixed(1) : data.humidity) || '0';
+            document.getElementById('humidityTime').textContent = data.timestamp || '-';
+        }
+        
+        // 添加圖表數據
+        function addChartData(data) {
+            chartData.temperatures.push(data.temperature);
+            chartData.humidities.push(data.humidity);
+            chartData.timestamps.push(data.timestamp.split(' ')[1] || '最新');
+            
+            // 只保留最後 maxDataPoints 筆
+            if (chartData.temperatures.length > maxDataPoints) {
+                chartData.temperatures.shift();
+                chartData.humidities.shift();
+                chartData.timestamps.shift();
+            }
+            
+            // 更新圖表
+            if (trendChart) {
+                trendChart.data.labels = chartData.timestamps;
+                trendChart.data.datasets[0].data = chartData.temperatures;
+                trendChart.data.datasets[1].data = chartData.humidities;
+                trendChart.update();
+            }
+        }
+        
+        // 初始化圖表
+        function initCharts() {
+            const trendCtx = document.getElementById('trendChart').getContext('2d');
+            trendChart = new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: chartData.timestamps,
+                    datasets: [
+                        {
+                            label: '溫度 (°C)',
+                            data: chartData.temperatures,
+                            borderColor: '#FF6B6B',
+                            backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            borderWidth: 2
+                        },
+                        {
+                            label: '濕度 (%)',
+                            data: chartData.humidities,
+                            borderColor: '#4ECDC4',
+                            backgroundColor: 'rgba(78, 205, 196, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            borderWidth: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+            
+            // 統計圖表
+            const statsCtx = document.getElementById('statsChart').getContext('2d');
+            statsChart = new Chart(statsCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['溫度數據', '濕度數據', '電燈狀態'],
+                    datasets: [{
+                        data: [
+                            chartData.temperatures.length,
+                            chartData.humidities.length,
+                            Math.ceil((chartData.temperatures.length + chartData.humidities.length) / 2)
+                        ],
+                        backgroundColor: [
+                            '#FF6B6B',
+                            '#4ECDC4',
+                            '#45B7D1'
+                        ],
+                        borderColor: 'white',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 頁面載入時自動獲取數據
+        window.addEventListener('load', () => {
+            fetchLatestData();
+            fetchHistoryData();
+        });
+    </script>
+</body>
+</html>
